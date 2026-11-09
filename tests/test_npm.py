@@ -1,3 +1,6 @@
+
+"""Тесты получения прямых зависимостей без реальных HTTP-запросов."""
+
 import io
 import json
 import unittest
@@ -124,7 +127,8 @@ class RegistryTests(unittest.TestCase):
         """Показать прямые зависимости без лишних данных."""
         output = io.StringIO()
         config = Path(__file__).resolve().parent.parent / "config.yaml"
-        with patch("sys.argv", ["main.py", "--config", str(config)]):
+        argv = ["main.py", "--config", str(config), "--direct"]
+        with patch("sys.argv", argv):
             with patch("src.main.fetch_direct_dependencies",
                        return_value=DIRECT):
                 with redirect_stdout(output):
@@ -139,7 +143,8 @@ class RegistryTests(unittest.TestCase):
         """Сообщить об отсутствии прямых зависимостей."""
         output = io.StringIO()
         config = Path(__file__).resolve().parent.parent / "config.yaml"
-        with patch("sys.argv", ["main.py", "--config", str(config)]):
+        argv = ["main.py", "--config", str(config), "--direct"]
+        with patch("sys.argv", argv):
             with patch("src.main.fetch_direct_dependencies",
                        return_value={}):
                 with redirect_stdout(output):

@@ -1,0 +1,7 @@
+package: "A"
+repository: "tests/repository_chain.json"
+test_mode: true
+version: "1.0.0"
+output_file: "test_graph.svg"
+ascii_tree: true
+max_depth: 2
