@@ -1,13 +1,16 @@
-"""CLI-приложение для анализа зависимостей npm-пакетов."""
-
 import argparse
+import json
 import re
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlsplit
+from urllib.request import Request, urlopen
 
 import yaml
 
 MIN_DEPTH = 0
+HTTP_NOT_FOUND = 404
+REQUEST_TIMEOUT = 10
 VERSION_RE = (
     r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
     r"(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?"
@@ -77,7 +80,6 @@ def check_output_file(file_name):
 
 
 def load_config(path):
-    """Прочитать YAML и проверить все настройки."""
     if not path.is_file():
         raise ValueError("config: файл не найден")
     try:
@@ -105,18 +107,62 @@ def load_config(path):
     return settings
 
 
+def package_url(repository, package, version):
+    name = quote(package, safe="@")
+    release = quote(version, safe="")
+    return f"{repository.rstrip('/')}/{name}/{release}"
+
+
+def fetch_direct_dependencies(repository, package, version):
+    url = package_url(repository, package, version)
+    request = Request(url, headers={"Accept": "application/json"})
+    try:
+        with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+            metadata = json.load(response)
+    except HTTPError as error:
+        if error.code == HTTP_NOT_FOUND:
+            raise ValueError("npm: пакет или версия не найдены") from error
+        raise ValueError(f"npm: ошибка HTTP {error.code}") from error
+    except (URLError, TimeoutError, OSError) as error:
+        raise ValueError("npm: не удалось подключиться") from error
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise ValueError("npm: некорректный ответ JSON") from error
+
+    if not isinstance(metadata, dict):
+        raise ValueError("npm: ожидался объект JSON")
+    if metadata.get("name") != package or metadata.get("version") != version:
+        raise ValueError("npm: неверный пакет или версия в ответе")
+    dependencies = metadata.get("dependencies", {})
+    if not isinstance(dependencies, dict):
+        raise ValueError("npm: неверный формат dependencies")
+    for name, release in dependencies.items():
+        if not isinstance(name, str) or not isinstance(release, str):
+            raise ValueError("npm: неверные данные зависимости")
+    return dependencies
+
+
 def main():
-    """Запустить приложение и показать настройки."""
     parser = argparse.ArgumentParser(description="Граф зависимостей npm")
     parser.add_argument("--config", default="config.yaml")
     args = parser.parse_args()
     try:
         settings = load_config(Path(args.config))
+        if settings["test_mode"]:
+            raise ValueError("тестовый режим будет добавлен на этапе 3")
+        dependencies = fetch_direct_dependencies(
+            settings["repository"], settings["package"],
+            settings["version"],
+        )
     except ValueError as error:
         parser.exit(1, f"Ошибка: {error}\n")
-    print("Параметры конфигурации:")
-    for key, value in settings.items():
-        print(f"{key}: {value}")
+
+    name = settings["package"]
+    version = settings["version"]
+    print(f"Прямые зависимости {name}@{version}:")
+    if not dependencies:
+        print("(нет зависимостей)")
+    for package, release in sorted(dependencies.items()):
+        print(f"{package}: {release}")
 
 
 if __name__ == "__main__":
