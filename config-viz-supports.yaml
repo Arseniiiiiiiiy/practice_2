@@ -1,0 +1,7 @@
+package: "supports-color"
+repository: "https://registry.npmjs.org"
+test_mode: false
+version: "7.2.0"
+output_file: "supports-color.svg"
+ascii_tree: true
+max_depth: 3

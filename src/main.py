@@ -11,6 +11,11 @@ from urllib.request import Request, urlopen
 
 import yaml
 
+if __package__:
+    from .visualize import show_visualization
+else:
+    from visualize import show_visualization
+
 MIN_DEPTH = 0
 HTTP_NOT_FOUND = 404
 REQUEST_TIMEOUT = 10
@@ -319,11 +324,12 @@ def build_test_graph(settings, config_path):
     root = settings["package"]
     if root not in repository:
         raise ValueError(f"repository: пакет {root} не найден")
+
     def get_children(name):
         """Получить соседей указанного тестового пакета."""
         return repository[name]
-    return root, build_graph(root, settings["max_depth"], get_children)
 
+    return root, build_graph(root, settings["max_depth"], get_children)
 
 
 def reverse_repository(repository):
@@ -395,22 +401,27 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--direct", action="store_true")
     mode.add_argument("--reverse", action="store_true")
+    parser.add_argument("--visualize", action="store_true")
     args = parser.parse_args()
     try:
         path = Path(args.config)
         settings = load_config(path)
         if args.direct:
+            if args.visualize:
+                raise ValueError("--direct несовместим с --visualize")
             print_direct(settings)
             return
         if args.reverse:
             root, graph = build_reverse_graph(settings, path)
             print_reverse_graph(root, graph)
-            return
-        if settings["test_mode"]:
-            root, graph = build_test_graph(settings, path)
         else:
-            root, graph = build_npm_graph(settings)
-        print_graph(root, graph)
+            if settings["test_mode"]:
+                root, graph = build_test_graph(settings, path)
+            else:
+                root, graph = build_npm_graph(settings)
+            print_graph(root, graph)
+        if args.visualize:
+            show_visualization(root, graph, settings, path, args.reverse)
     except ValueError as error:
         parser.exit(1, f"Ошибка: {error}\n")
 
