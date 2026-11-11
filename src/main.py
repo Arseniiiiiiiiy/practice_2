@@ -1,3 +1,6 @@
+
+"""CLI-приложение для анализа графа зависимостей npm-пакетов."""
+
 import argparse
 import json
 import re
@@ -19,6 +22,7 @@ STABLE_VERSION_RE = r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
 
 
 def text_value(data, key):
+    """Получить обязательный текстовый параметр."""
     value = data.get(key)
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{key}: нужна непустая строка")
@@ -321,6 +325,42 @@ def build_test_graph(settings, config_path):
     return root, build_graph(root, settings["max_depth"], get_children)
 
 
+
+def reverse_repository(repository):
+    """Построить словарь: пакет -> пакеты, которые от него зависят."""
+    reverse = {package: [] for package in repository}
+    for package, dependencies in repository.items():
+        for dependency in dependencies:
+            reverse[dependency].append(package)
+    return reverse
+
+
+def build_reverse_graph(settings, config_path):
+    """Получить обратные зависимости тестового пакета рекурсивным BFS."""
+    if not settings["test_mode"]:
+        raise ValueError("--reverse доступен только для тестового репозитория")
+    path = config_path.parent / settings["repository"]
+    repository = load_test_repository(path)
+    root = settings["package"]
+    if root not in repository:
+        raise ValueError(f"repository: пакет {root} не найден")
+    reverse = reverse_repository(repository)
+    return root, build_graph(root, settings["max_depth"],
+                             reverse.__getitem__)
+
+
+def print_reverse_graph(root, graph):
+    """Показать зависимости в направлении «кто использует пакет»."""
+    print(f"Обратные зависимости {root}:")
+    for package, dependents in graph.items():
+        if dependents is None:
+            print(f"{package} <- (предел глубины)")
+        elif dependents:
+            print(f"{package} <- {', '.join(dependents)}")
+        else:
+            print(f"{package} <- (нет зависимых пакетов)")
+
+
 def print_graph(root, graph):
     """Показать найденные связи и узлы на границе глубины."""
     print(f"Граф зависимостей {root}:")
@@ -352,13 +392,19 @@ def main():
     """Проверить настройки и вывести прямые зависимости или граф."""
     parser = argparse.ArgumentParser(description="Граф зависимостей npm")
     parser.add_argument("--config", default="config.yaml")
-    parser.add_argument("--direct", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--direct", action="store_true")
+    mode.add_argument("--reverse", action="store_true")
     args = parser.parse_args()
     try:
         path = Path(args.config)
         settings = load_config(path)
         if args.direct:
             print_direct(settings)
+            return
+        if args.reverse:
+            root, graph = build_reverse_graph(settings, path)
+            print_reverse_graph(root, graph)
             return
         if settings["test_mode"]:
             root, graph = build_test_graph(settings, path)
