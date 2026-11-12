@@ -1,3 +1,4 @@
+
 """Тесты параметров приложения."""
 
 import tempfile
@@ -11,7 +12,7 @@ from src.main import load_config
 
 class ConfigTests(unittest.TestCase):
 
-    def set_up(self):
+    def prepare_config(self):
         """Создать временную папку и корректные настройки."""
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -25,8 +26,6 @@ class ConfigTests(unittest.TestCase):
             "ascii_tree": True,
             "max_depth": 3,
         }
-        
-    setUp = set_up
 
     def save(self, data):
         """Сохранить настройки во временный YAML-файл."""
@@ -43,39 +42,48 @@ class ConfigTests(unittest.TestCase):
 
     def test_valid_config(self):
         """Принять корректные настройки."""
+        self.prepare_config()
         self.save(self.data)
         self.assertEqual(load_config(self.path), self.data)
 
     def test_package_error(self):
         """Отклонить пустое имя пакета."""
+        self.prepare_config()
         self.expect_error("package", "")
 
     def test_repository_error(self):
         """Отклонить неправильный URL."""
+        self.prepare_config()
         self.expect_error("repository", "not-a-url")
 
     def test_test_mode_error(self):
         """Отклонить строку вместо логического значения."""
+        self.prepare_config()
         self.expect_error("test_mode", "yes")
 
     def test_version_error(self):
         """Отклонить номер версии в неправильном формате."""
+        self.prepare_config()
         self.expect_error("version", "latest")
 
     def test_output_file_error(self):
         """Отклонить неверное расширение файла."""
+        self.prepare_config()
         self.expect_error("output_file", "graph.png")
 
     def test_ascii_tree_error(self):
         """Отклонить строку вместо логического значения."""
+        self.prepare_config()
         self.expect_error("ascii_tree", "no")
 
     def test_max_depth_error(self):
         """Отклонить отрицательную глубину."""
+        self.prepare_config()
         self.expect_error("max_depth", -1)
 
     def test_missing_parameter(self):
         """Отклонить конфигурацию с отсутствующим параметром."""
+        self.prepare_config()
         data = self.data.copy()
         del data["package"]
         self.save(data)
@@ -84,27 +92,41 @@ class ConfigTests(unittest.TestCase):
 
     def test_invalid_yaml(self):
         """Отклонить поврежденный YAML."""
+        self.prepare_config()
         self.path.write_text("package: [", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "config"):
             load_config(self.path)
 
     def test_missing_config(self):
         """Сообщить об отсутствии файла конфигурации."""
+        self.prepare_config()
         with self.assertRaisesRegex(ValueError, "config"):
             load_config(self.path)
 
     def test_valid_test_mode(self):
         """Принять существующий тестовый репозиторий."""
-        (self.path.parent / "repo.json").write_text("{}", encoding="utf-8")
+        self.prepare_config()
+        (self.path.parent / "repo.json").write_text(
+            "{}", encoding="utf-8"
+        )
         data = self.data.copy()
-        data.update(package="A", test_mode=True, repository="repo.json")
+        data.update(
+            package="A",
+            test_mode=True,
+            repository="repo.json"
+        )
         self.save(data)
         self.assertEqual(load_config(self.path), data)
 
     def test_missing_test_repository(self):
         """Отклонить отсутствующий тестовый репозиторий."""
+        self.prepare_config()
         data = self.data.copy()
-        data.update(package="A", test_mode=True, repository="missing.json")
+        data.update(
+            package="A",
+            test_mode=True,
+            repository="missing.json"
+        )
         self.save(data)
         with self.assertRaisesRegex(ValueError, "repository"):
             load_config(self.path)
