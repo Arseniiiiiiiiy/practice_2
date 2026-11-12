@@ -10,9 +10,8 @@ from src.main import load_config
 
 
 class ConfigTests(unittest.TestCase):
-    """Проверить чтение и валидацию YAML-конфигурации."""
 
-    def setUp(self):
+    def set_up(self):
         """Создать временную папку и корректные настройки."""
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -26,6 +25,8 @@ class ConfigTests(unittest.TestCase):
             "ascii_tree": True,
             "max_depth": 3,
         }
+        
+    setUp = set_up
 
     def save(self, data):
         """Сохранить настройки во временный YAML-файл."""
